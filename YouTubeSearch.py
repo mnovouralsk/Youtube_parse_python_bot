@@ -23,14 +23,15 @@ class YouTubeSearch:
         self.youtube = googleapiclient.discovery.build(self.api_service_name, self.api_version, credentials=self.credentials)
 
     def get_videos_from_channel(self):
+        next_page_token = ''
         while True:
             request = self.youtube.search().list(
                 channelId = self.channel_id,
                 part = "snippet",
                 order = 'date',
                 publishedAfter = '2024-01-01T17:47:00Z',
-                maxResults = 10,
-                pageToken = ""
+                maxResults = 5,
+                pageToken = next_page_token
             )
             response = request.execute()
 
