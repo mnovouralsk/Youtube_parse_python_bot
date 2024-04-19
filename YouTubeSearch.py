@@ -39,7 +39,8 @@ class YouTubeSearch:
                 if i['id']['kind'] == "youtube#video":
                     print(self.base_video_url + i['id']['videoId'] + '    ' + i['snippet']['publishedAt'] + '    ' + i['snippet']['title'])
             try:
-                next_page_token = response['nextPageToken']
+                # next_page_token = response['nextPageToken']
+                print('ok')
             except:
                 break
         #print(response)
