@@ -138,3 +138,24 @@ class YouTubeSearch:
 
     def get_channel_url(self, channel_id):
         return self.base_channel_url + channel_id
+
+    # def search_videos(self, keywords):
+    #     self.authenticate()
+    #     while True:
+    #         request = self.youtube.search().list(
+    #             q = keywords,
+    #             part = "snippet",
+    #             type = "video",
+    #             order = 'relevance',
+    #             maxResults = 50,
+    #             pageToken = self.next_page_token
+    #         )
+    #         response = request.execute()
+
+    #         for i in response['items']:
+    #             if i['id']['kind'] == "youtube#video":
+    #                 print(self.base_video_url + i['id']['videoId'] + '    ' + i['snippet']['publishedAt'] + '    ' + i['snippet']['title'])
+    #         try:
+    #             self.next_page_token = response['nextPageToken']
+    #         except:
+    #             break
