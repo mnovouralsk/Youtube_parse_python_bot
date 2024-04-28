@@ -160,7 +160,6 @@ class YouTubeSearch:
             for i in response['items']:
                 if i['id']['kind'] == "youtube#video":
                     results.append((i['id']['videoId'], i['snippet']['title'], i['snippet']['description']))
-                    # print(i)
             try:
                 self.next_page_token = response['nextPageToken']
             except:
