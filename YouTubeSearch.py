@@ -10,12 +10,11 @@ scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
 class YouTubeSearch:
 
-    def __init__(self, client_secrets_file, channel_id):
+    def __init__(self, client_secrets_file):
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
         self.api_service_name = "youtube"
         self.api_version = "v3"
-        self.channel_id = channel_id
         self.client_secrets_file = client_secrets_file
         self.base_video_url = 'https://www.youtube.com/watch?v='
         self.base_channel_url = 'https://www.youtube.com/channel/'
@@ -27,9 +26,9 @@ class YouTubeSearch:
         credentials = flow.run_console()
         self.youtube = googleapiclient.discovery.build(self.api_service_name, self.api_version, credentials=credentials)
 
-    def get_videos_from_channel(self, count=5, date='2024-01-01T17:47:00Z'):
-        # self.authenticate()
+    def get_videos_from_channel(self, count=5, date='2024-01-01T17:47:00Z', channel_id=''):
         results = []
+        self.channel_id = channel_id
 
         if (count > 50):
             stage = (count // 50) + 1
@@ -54,18 +53,17 @@ class YouTubeSearch:
             for i in response['items']:
                 if i['id']['kind'] == "youtube#video":
                     results.append((i['id']['videoId'], i['snippet']['publishedAt'], i['snippet']['title']))
-                    print(self.base_video_url + i['id']['videoId'] + '    ' + i['snippet']['publishedAt'] + '    ' + i['snippet']['title'])
+                    # print(self.base_video_url + i['id']['videoId'] + '    ' + i['snippet']['publishedAt'] + '    ' + i['snippet']['title'])
             try:
                 self.next_page_token = response['nextPageToken']
             except:
                 break
             _count = _count - 50 * stage
-
+        self.next_page_token = ''
         return tuple(results)
 
     # получение id канала
     def get_channel_id(self, channel_name):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "snippet",
             forUsername = channel_name
@@ -75,7 +73,6 @@ class YouTubeSearch:
 
     # получение названия канала
     def get_channel_name(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "snippet",
             id = channel_id
@@ -85,7 +82,6 @@ class YouTubeSearch:
 
     # получение описания канала
     def get_channel_description(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "snippet",
             id = channel_id
@@ -95,7 +91,6 @@ class YouTubeSearch:
 
     # получение изображения канала
     def get_channel_thumbnail(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "snippet",
             id = channel_id
@@ -105,7 +100,6 @@ class YouTubeSearch:
 
     # получение количества подписчиков
     def get_channel_subscribers(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "statistics",
             id = channel_id
@@ -115,7 +109,6 @@ class YouTubeSearch:
 
     # получение количества просмотров
     def get_channel_view_count(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "statistics",
             id = channel_id
@@ -125,7 +118,6 @@ class YouTubeSearch:
 
     # получение количества видео
     def get_channel_video_count(self, channel_id):
-        # self.authenticate()
         request = self.youtube.channels().list(
             part = "statistics",
             id = channel_id
@@ -133,29 +125,46 @@ class YouTubeSearch:
         response = request.execute()
         return response['items'][0]['statistics']['videoCount']
 
+    # получение ссылки на видео
     def get_video_url(self, video_id):
         return self.base_video_url + video_id
 
+    # получение ссылки на канал
     def get_channel_url(self, channel_id):
         return self.base_channel_url + channel_id
 
-    # def search_videos(self, keywords):
-    #     self.authenticate()
-    #     while True:
-    #         request = self.youtube.search().list(
-    #             q = keywords,
-    #             part = "snippet",
-    #             type = "video",
-    #             order = 'relevance',
-    #             maxResults = 50,
-    #             pageToken = self.next_page_token
-    #         )
-    #         response = request.execute()
+    def search_videos(self, count=1, keywords='', date='2024-01-01T17:47:00Z'):
+        results = []
 
-    #         for i in response['items']:
-    #             if i['id']['kind'] == "youtube#video":
-    #                 print(self.base_video_url + i['id']['videoId'] + '    ' + i['snippet']['publishedAt'] + '    ' + i['snippet']['title'])
-    #         try:
-    #             self.next_page_token = response['nextPageToken']
-    #         except:
-    #             break
+        if (count > 50):
+            stage = (count // 50) + 1
+            _count = 50
+        else:
+            stage = 1
+            _count = count
+
+        while stage > 0:
+            stage -= 1
+
+            request = self.youtube.search().list(
+                q = keywords,
+                part = "snippet",
+                type = "video",
+                order = 'relevance',
+                publishedAfter = date,
+                maxResults = _count,
+                pageToken = self.next_page_token
+            )
+            response = request.execute()
+
+            for i in response['items']:
+                if i['id']['kind'] == "youtube#video":
+                    results.append((i['id']['videoId'], i['snippet']['title'], i['snippet']['description']))
+                    # print(i)
+            try:
+                self.next_page_token = response['nextPageToken']
+            except:
+                break
+            _count = _count - 50 * stage
+        self.next_page_token = ''
+        return tuple(results)
