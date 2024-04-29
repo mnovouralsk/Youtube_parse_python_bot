@@ -1,4 +1,5 @@
 import YouTubeSearch as youtube
+from YouTubeSearch import quality
 import time
 from config import BOT_TOKEN
 from datetime import datetime, timedelta
@@ -40,6 +41,7 @@ def main():
 
     if not isinstance(data, list):
         data = list(data)
+        _youtube.get_url_image_from_video('video_id', quality.)
 
     # Преобразование элементов в кортежи
     data_tuples = [tuple(item) for item in data]

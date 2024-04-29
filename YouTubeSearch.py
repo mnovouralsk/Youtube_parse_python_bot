@@ -16,8 +16,21 @@ class YouTubeSearch:
         self.api_service_name = "youtube"
         self.api_version = "v3"
         self.client_secrets_file = client_secrets_file
+
+        self.image_quality = {
+            "default": "default.jpg",
+            "mqdefault": "mqdefault.jpg",
+            "hqdefault": "hqdefault.jpg",
+            "sddefault": "sddefault.jpg",
+            "maxresdefault": "maxresdefault.jpg",
+            "0": "0.jpg",
+            "1": "1.jpg",
+            "2": "2.jpg",
+            "3": "3.jpg"
+        }
         self.base_video_url = 'https://www.youtube.com/watch?v='
         self.base_channel_url = 'https://www.youtube.com/channel/'
+        self.base_image_url = 'http://img.youtube.com/vi/'
         self.next_page_token = ''
         self.authenticate()
 
@@ -26,6 +39,7 @@ class YouTubeSearch:
         credentials = flow.run_console()
         self.youtube = googleapiclient.discovery.build(self.api_service_name, self.api_version, credentials=credentials)
 
+    # Функция для получения списка видео из канала
     def get_videos_from_channel(self, count=5, date='2024-01-01T17:47:00Z', channel_id=''):
         results = []
         self.channel_id = channel_id
@@ -133,6 +147,7 @@ class YouTubeSearch:
     def get_channel_url(self, channel_id):
         return self.base_channel_url + channel_id
 
+    # поиск видео
     def search_videos(self, count=1, keywords='', date='2024-01-01T17:47:00Z'):
         results = []
 
@@ -167,3 +182,7 @@ class YouTubeSearch:
             _count = _count - 50 * stage
         self.next_page_token = ''
         return tuple(results)
+
+    # получение изображения видео
+    def get_url_image_from_video(self, video_id, quality):
+        return self.base_image_url + video_id + '/' + self.image_quality[quality]
