@@ -72,17 +72,18 @@ unique_results_list = [
 ```
 
 ### 📂 Структура
-
+```bash
 Youtube_parse_python_bot/
 │
 ├── YouTubeSearch.py         # Мозг
 ├── main.py                  # Точка входа в систему
 ├── requirements.txt         # Зависимости
 └── README.md
+```
 
 ### ⚠️ Важные моменты
 
 - Для аутентификации используй flow.run_local_server(). Старые методы уже не работают.
 
 ### 🔗 Полезные ссылки
-Google YouTube API
+[Google YouTube API](https://developers.google.com/youtube/v3)
