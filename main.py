@@ -1,18 +1,21 @@
 import YouTubeSearch as youtube
-from YouTubeSearch import quality
-import time
+# from YouTubeSearch import quality
 from config import BOT_TOKEN
-from datetime import datetime, timedelta
-import json
-import os
-
+from datetime import datetime, timedelta, timezone
+from typing import List, Tuple
 
 import telebot
+import json
+import os
+import time
+
 def main():
+    key_words = 'python yandex'
+
     bot = telebot.TeleBot(BOT_TOKEN)
-    _youtube = youtube.YouTubeSearch('YOUR_CLIENT_SECRET_FILE.json')
+    YTube = youtube.YouTubeSearch('YOUR_CLIENT_SECRET_FILE.json')
     # Получение текущей даты и времени
-    current_datetime = datetime.utcnow()
+    current_datetime = datetime.now(timezone.utc)
 
     # Вычитание 3 часов
     adjusted_datetime = current_datetime - timedelta(hours=48)
@@ -21,7 +24,11 @@ def main():
     formatted_datetime = adjusted_datetime.strftime('%Y-%m-%d') + 'T' + adjusted_datetime.strftime('%H:%M:%S') + 'Z'
 
     # while True:
-    results = _youtube.search_videos(count=30, keywords="1С:Предприятие ", date=formatted_datetime)
+    results: List[Tuple[str, str, str]] = YTube.search_videos(
+        count=30,
+        keywords=key_words,
+        date=formatted_datetime
+    ) or []
 
     unique_results = {}
     for video_id, title, description in results:
@@ -41,7 +48,7 @@ def main():
 
     if not isinstance(data, list):
         data = list(data)
-        _youtube.get_url_image_from_video('video_id', quality.)
+        YTube.get_url_image_from_video('video_id', "default")
 
     # Преобразование элементов в кортежи
     data_tuples = [tuple(item) for item in data]
@@ -52,7 +59,7 @@ def main():
     filtered_list = [x for x in unique_results_tuples if x not in data_tuples]
 
     for result in filtered_list:
-        bot.send_message('-4169122053', _youtube.get_video_url(result[0]))
+        bot.send_message('-4169122053', YTube.get_video_url(result[0]))
         print(result)
         time.sleep(0.9)
 
