@@ -10,7 +10,7 @@ import os
 import time
 
 def main():
-    key_words = 'python yandex'
+    key_words = 'python'
 
     bot = telebot.TeleBot(BOT_TOKEN)
     YTube = youtube.YouTubeSearch('YOUR_CLIENT_SECRET_FILE.json')
@@ -59,18 +59,18 @@ def main():
     filtered_list = [x for x in unique_results_tuples if x not in data_tuples]
 
     for result in filtered_list:
-        bot.send_message('-4169122053', YTube.get_video_url(result[0]))
+        bot.send_message('1675247184', YTube.get_video_url(result[0]))
         print(result)
         time.sleep(0.9)
 
     # Очищаем файл
-    with open('data.json', 'w') as file:
-        file.write('')
+    if data != []:
+        with open('data.json', 'w') as file:
+            file.write('')
 
-    # Сохраняем unique_results_list в файл
-    with open('data.json', 'w') as file:
-        json.dump(filtered_list, file)
-
+        # Сохраняем unique_results_list в файл
+        with open('data.json', 'w') as file:
+            json.dump(filtered_list, file)
 
 
 if __name__ == "__main__":

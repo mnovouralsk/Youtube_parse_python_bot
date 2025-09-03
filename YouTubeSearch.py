@@ -35,9 +35,18 @@ class YouTubeSearch:
         self.authenticate()
 
     def authenticate(self):
-        flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(self.client_secrets_file, scopes)
-        credentials = flow.run_console()
-        self.youtube = googleapiclient.discovery.build(self.api_service_name, self.api_version, credentials=credentials)
+        flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
+            self.client_secrets_file, scopes
+        )
+
+        # Вместо run_console() используем run_local_server
+        credentials = flow.run_local_server(port=0)  # откроется браузер для авторизации
+
+        self.youtube = googleapiclient.discovery.build(
+            self.api_service_name,
+            self.api_version,
+            credentials=credentials
+        )
 
     # Функция для получения списка видео из канала
     def get_videos_from_channel(self, count=5, date='2024-01-01T17:47:00Z', channel_id=''):
