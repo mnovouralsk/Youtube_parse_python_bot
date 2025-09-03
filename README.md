@@ -66,6 +66,10 @@ for video_id, title, description in results:
         unique_results[video_id] = (title, description)
 
 unique_results_list = [
+    (video_id, title, description)  
+    for video_id, (title, description) in unique_results.items()
+]
+```
 
 ### 📂 Структура
 
@@ -82,6 +86,3 @@ Youtube_parse_python_bot/
 
 ### 🔗 Полезные ссылки
 Google YouTube API
-    (video_id, title, description)  
-    for video_id, (title, description) in unique_results.items()
-]
