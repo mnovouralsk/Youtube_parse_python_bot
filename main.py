@@ -1,77 +1,94 @@
-import YouTubeSearch as youtube
-# from YouTubeSearch import quality
-from config import BOT_TOKEN
-from datetime import datetime, timedelta, timezone
-from typing import List, Tuple
+# main.py
+import asyncio
+import sys
+import signal
+from bot.bot_main import dp, bot
+from core.logger import logger
+from config import Config
+from core.yt_parser.youtube_checker import YouTubeChecker
 
-import telebot
-import json
-import os
-import time
-
-def main():
-    key_words = 'python'
-
-    bot = telebot.TeleBot(BOT_TOKEN)
-    YTube = youtube.YouTubeSearch('YOUR_CLIENT_SECRET_FILE.json')
-    # Получение текущей даты и времени
-    current_datetime = datetime.now(timezone.utc)
-
-    # Вычитание 3 часов
-    adjusted_datetime = current_datetime - timedelta(hours=48)
-
-    # Преобразование откорректированной даты и времени в нужный формат
-    formatted_datetime = adjusted_datetime.strftime('%Y-%m-%d') + 'T' + adjusted_datetime.strftime('%H:%M:%S') + 'Z'
-
-    # while True:
-    results: List[Tuple[str, str, str]] = YTube.search_videos(
-        count=30,
-        keywords=key_words,
-        date=formatted_datetime
-    ) or []
-
-    unique_results = {}
-    for video_id, title, description in results:
-        if video_id not in unique_results:
-            unique_results[video_id] = (title, description)
-
-    # Преобразуем словарь обратно в список
-    unique_results_list = [(video_id, title, description) for video_id, (title, description) in unique_results.items()]
-
-    file_path = 'data.json'
-
-    if os.path.exists(file_path):
-        with open('data.json', 'r') as file:
-            data = json.load(file)
-    else:
-        data = []
-
-    if not isinstance(data, list):
-        data = list(data)
-        YTube.get_url_image_from_video('video_id', "default")
-
-    # Преобразование элементов в кортежи
-    data_tuples = [tuple(item) for item in data]
-    unique_results_tuples = [tuple(item) for item in unique_results_list]
+# Параметры из конфигурации
+config = Config()
+CHECK_INTERVAL_HOURS = config.check_interval_hours
 
 
-    # Создаем новый список, исключая элементы 2 и 3
-    filtered_list = [x for x in unique_results_tuples if x not in data_tuples]
+class ReleaseTrackerApp:
+    """
+    Главный управляющий класс приложения Release Tracker.
+    Запускает Telegram-бота и периодический парсер YouTube.
+    Обеспечивает устойчивость и корректное завершение.
+    """
 
-    for result in filtered_list:
-        bot.send_message('1675247184', YTube.get_video_url(result[0]))
-        print(result)
-        time.sleep(0.9)
+    def __init__(self):
+        self.bot = bot
+        self.dp = dp
+        self._stopping = False
+        self._periodic_task = None  # фоновая проверка каналов
+        self.checker = YouTubeChecker()
 
-    # Очищаем файл
-    if data != []:
-        with open('data.json', 'w') as file:
-            file.write('')
+    async def start(self):
+        """Запуск бота и фонового парсера"""
+        logger.info("🚀 Запуск Release Tracker...")
 
-        # Сохраняем unique_results_list в файл
-        with open('data.json', 'w') as file:
-            json.dump(filtered_list, file)
+        # Запуск фоновой проверки каналов
+        if not self._periodic_task:
+            logger.info("🔎 Запуск фоновой проверки каналов...")
+            self._periodic_task = asyncio.create_task(self.checker.start_periodic_check())
+
+        # Запуск Telegram-бота
+        await self.run_bot()
+
+    async def run_bot(self):
+        """Запуск Telegram-бота с авто-перезапуском"""
+        while not self._stopping:
+            try:
+                logger.info("🤖 Запуск Telegram-бота...")
+                await self.dp.start_polling(
+                    self.bot,
+                    skip_updates=True,
+                    polling_timeout=10,
+                    allowed_updates=self.dp.resolve_used_update_types()
+                )
+            except Exception as e:
+                logger.error(f"Ошибка в Telegram-боте: {e}", exc_info=True)
+                logger.info("Перезапуск бота через 5 секунд...")
+                await asyncio.sleep(5)
+
+    async def stop(self, *_):
+        """Корректное завершение работы приложения"""
+        self._stopping = True
+        logger.info("🛑 Остановка Release Tracker...")
+
+        # Отмена фонового таска
+        if self._periodic_task:
+            self._periodic_task.cancel()
+            try:
+                await self._periodic_task
+            except asyncio.CancelledError:
+                logger.info("Фоновая проверка каналов остановлена.")
+
+        # Закрытие сессий и хранилищ бота
+        await self.bot.session.close()
+        await self.dp.storage.close()
+        logger.info("✅ Завершение работы.")
+        sys.exit(0)
+
+
+async def main():
+    """Точка входа"""
+    app = ReleaseTrackerApp()
+
+    # Обработка сигналов остановки (только Unix)
+    loop = asyncio.get_running_loop()
+    if sys.platform != "win32":
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(app.stop(s)))
+
+    await app.start()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Бот остановлен вручную.")

@@ -1,4 +1,9 @@
-youtube-search
-google-auth-oauthlib
-google-api-python-client
-pyTelegramBotAPI
+# --- Core dependencies ---
+youtube-search>=2.1.2
+google-auth-oauthlib>=1.2.3
+google-api-python-client>=2.187.0
+aiogram>=3.22.0
+g4f>=6.5.7
+
+# --- Optional: dotenv and configuration ---
+python-dotenv>=1.2.1

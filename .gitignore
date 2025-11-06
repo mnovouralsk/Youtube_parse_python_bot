@@ -1,3 +1,14 @@
-config.py
 YOUR_CLIENT_SECRET_FILE.json
 data.json
+
+*.env
+venv/
+
+log/
+*.log
+
+*.db
+config.py
+
+__pycache__/
+data/
