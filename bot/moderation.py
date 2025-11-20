@@ -16,100 +16,100 @@ GROUPS_BY_GENRE = config.groups_by_genre
 
 
 # ------------------ Отображение поста -------------------
-async def show_post(bot: Bot, chat_id: int, index: int):
-    """Показывает пост для модерации по индексу."""
+# async def show_post(bot: Bot, chat_id: int, index: int):
+#     """Показывает пост для модерации по индексу."""
 
-    posts = load_json(PENDING_POSTS_JSON)
+#     posts = load_json(PENDING_POSTS_JSON)
 
-    # Проверяем, есть ли посты
-    if not posts or index >= len(posts):
-        await bot.send_message(chat_id, "Больше постов для модерации нет ✅")
-        return
+#     # Проверяем, есть ли посты
+#     if not posts or index >= len(posts):
+#         await bot.send_message(chat_id, "Больше постов для модерации нет ✅")
+#         return
 
-    post = posts[index]
+#     post = posts[index]
 
-    caption = (
-        f"<b>{post.get('title', 'Без названия')}</b>\n\n"
-        f"{post.get('generated_post', 'Нет текста поста')}\n\n"
-        f"<b>Жанр:</b> {post.get('genre', 'Неизвестно')}\n"
-        f"<a href='https://youtu.be/{post.get('videoId', '')}'>🎬 Смотреть видео</a>"
-    )
+#     caption = (
+#         f"<b>{post.get('title', 'Без названия')}</b>\n\n"
+#         f"{post.get('generated_post', 'Нет текста поста')}\n\n"
+#         f"<b>Жанр:</b> {post.get('genre', 'Неизвестно')}\n"
+#         f"<a href='https://youtu.be/{post.get('videoId', '')}'>🎬 Смотреть видео</a>"
+#     )
 
-    try:
-        # Отправляем пост с фото
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=post.get("thumbnail_url", ""),
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=moderation_keyboard(index)
-        )
-    except Exception as e:
-        # Если картинка не загрузилась — отправляем текстовое сообщение
-        logger.error(f"Ошибка при отправке поста '{post.get('title')}': {e}")
-        await bot.send_message(
-            chat_id,
-            f"⚠️ Не удалось отправить фото. Вот сам пост:\n\n{caption}",
-            parse_mode="HTML",
-            reply_markup=moderation_keyboard(index)
-        )
+#     try:
+#         # Отправляем пост с фото
+#         await bot.send_photo(
+#             chat_id=chat_id,
+#             photo=post.get("thumbnail_url", ""),
+#             caption=caption,
+#             parse_mode="HTML",
+#             reply_markup=moderation_keyboard(index),
+#         )
+#     except Exception as e:
+#         # Если картинка не загрузилась — отправляем текстовое сообщение
+#         logger.error(f"Ошибка при отправке поста '{post.get('title')}': {e}")
+#         await bot.send_message(
+#             chat_id,
+#             f"⚠️ Не удалось отправить фото. Вот сам пост:\n\n{caption}",
+#             parse_mode="HTML",
+#             reply_markup=moderation_keyboard(index),
+#         )
 
 
 # ------------------ Callback Handler -------------------
-@router_moderation.callback_query(ModerationAction.filter())
-async def handle_callback(query: types.CallbackQuery, callback_data: ModerationAction):
-    """Обработка действий модератора"""
-    bot = query.bot
-    posts = load_json(PENDING_POSTS_JSON)
-    index = callback_data.post_index
-    chat_id = query.message.chat.id
+# @router_moderation.callback_query(ModerationAction.filter())
+# async def handle_callback(query: types.CallbackQuery, callback_data: ModerationAction):
+#     """Обработка действий модератора"""
+#     bot = query.bot
+#     posts = load_json(PENDING_POSTS_JSON)
+#     index = callback_data.post_index
+#     chat_id = query.message.chat.id
 
-    if index >= len(posts):
-        await query.answer("Пост не найден ❌", show_alert=True)
-        return
+#     if index >= len(posts):
+#         await query.answer("Пост не найден ❌", show_alert=True)
+#         return
 
-    post = posts[index]
+#     post = posts[index]
 
-    # --- Одобрение ---
-    if callback_data.action == "approve":
-        post["status"] = "approved"
-        await query.answer("✅ Пост одобрен")
+#     # --- Одобрение ---
+#     if callback_data.action == "approve":
+#         post["status"] = "approved"
+#         await query.answer("✅ Пост одобрен")
 
-        genre_group_id = GROUPS_BY_GENRE.get(post["genre"])
-        if genre_group_id:
-            try:
-                await bot.send_photo(
-                    chat_id=genre_group_id,
-                    photo=post["thumbnail_url"],
-                    caption=post["generated_post"],
-                    parse_mode="HTML"
-                )
-                logger.info(f"Пост '{post['title']}' опубликован в группу {genre_group_id}")
-            except Exception as e:
-                logger.error(f"Ошибка публикации поста '{post['title']}': {e}")
-        else:
-            logger.warning(f"Не найдена группа для жанра: {post['genre']}")
+#         genre_group_id = GROUPS_BY_GENRE.get(post["genre"])
+#         if genre_group_id:
+#             try:
+#                 await bot.send_photo(
+#                     chat_id=genre_group_id,
+#                     photo=post["thumbnail_url"],
+#                     caption=post["generated_post"],
+#                     parse_mode="HTML"
+#                 )
+#                 logger.info(f"Пост '{post['title']}' опубликован в группу {genre_group_id}")
+#             except Exception as e:
+#                 logger.error(f"Ошибка публикации поста '{post['title']}': {e}")
+#         else:
+#             logger.warning(f"Не найдена группа для жанра: {post['genre']}")
 
-    # --- Перегенерация ---
-    elif callback_data.action == "revise":
-        await query.answer("♻️ Генерируется новый вариант...")
-        try:
-            post_prompt = generate_post_prompt(post["title"], post["description"])
-            new_post = await generate_post(post_prompt)
-            post["generated_post"] = new_post
-            post["status"] = "pending"
-        except Exception as e:
-            logger.error(f"Ошибка при регенерации поста '{post['title']}': {e}")
-            await bot.send_message(chat_id, f"⚠️ Ошибка генерации поста: {e}")
+#     # --- Перегенерация ---
+#     elif callback_data.action == "revise":
+#         await query.answer("♻️ Генерируется новый вариант...")
+#         try:
+#             post_prompt = generate_post_prompt(post["title"], post["description"])
+#             new_post = await generate_post(post_prompt)
+#             post["generated_post"] = new_post
+#             post["status"] = "pending"
+#         except Exception as e:
+#             logger.error(f"Ошибка при регенерации поста '{post['title']}': {e}")
+#             await bot.send_message(chat_id, f"⚠️ Ошибка генерации поста: {e}")
 
-    # --- Следующий пост ---
-    elif callback_data.action == "next":
-        await query.answer("⏭ Следующий пост")
-        index += 1
+#     # --- Следующий пост ---
+#     elif callback_data.action == "next":
+#         await query.answer("⏭ Следующий пост")
+#         index += 1
 
-    # Сохраняем изменения и показываем следующий пост
-    save_json(PENDING_POSTS_JSON, posts)
-    await show_post(bot, chat_id, index)
+#     # Сохраняем изменения и показываем следующий пост
+#     save_json(PENDING_POSTS_JSON, posts)
+#     await show_post(bot, chat_id, index)
 
 
 # ------------------ Команда /moderate -------------------

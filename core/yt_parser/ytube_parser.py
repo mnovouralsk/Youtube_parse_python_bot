@@ -1,7 +1,6 @@
 # core/yt_parser/ytube_parser.py
 import os
 import json
-import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
 
@@ -60,7 +59,9 @@ class YouTubeParser:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(YOUR_CLIENT_SECRET_FILE, scopes)
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    YOUR_CLIENT_SECRET_FILE, scopes
+                )
                 creds = flow.run_local_server(port=0)
             with open(TOKEN_FILE, "wb") as token:
                 pickle.dump(creds, token)
@@ -148,15 +149,18 @@ class YouTubeParser:
                 if last_known_video and video_id == last_known_video:
                     break
 
-                new_videos.append({
-                    "channel_id": channel_id,
-                    "video_id": video_id,
-                    "title": snippet["title"],
-                    "description": snippet.get("description", ""),
-                    "thumbnail": snippet["thumbnails"]["high"]["url"],
-                    "published_at": snippet["publishedAt"],
-                    "url": f"https://www.youtube.com/watch?v={video_id}"
-                })
+                new_videos.append(
+                    {
+                        "channel_id": channel_id,
+                        "channel_name": channel["name"],
+                        "video_id": video_id,
+                        "title": snippet["title"],
+                        "description": snippet.get("description", ""),
+                        "thumbnail": snippet["thumbnails"]["high"]["url"],
+                        "published_at": snippet["publishedAt"],
+                        "url": f"https://www.youtube.com/watch?v={video_id}",
+                    }
+                )
 
             if videos:
                 self.last_videos[channel_id] = videos[0]["id"]["videoId"]
@@ -165,7 +169,9 @@ class YouTubeParser:
         logger.info(f"✅ Найдено {len(new_videos)} новых видео")
         return new_videos
 
-    def _get_channel_videos(self, channel_id: str, published_after: Optional[str] = None) -> List[Dict]:
+    def _get_channel_videos(
+        self, channel_id: str, published_after: Optional[str] = None
+    ) -> List[Dict]:
         """Получение всех видео канала с возможностью фильтрации по дате"""
         try:
             request = self.youtube.search().list(
@@ -174,13 +180,14 @@ class YouTubeParser:
                 maxResults=5,  # можно увеличить, если нужно
                 order="date",
                 type="video",
-                publishedAfter=published_after
+                publishedAfter=published_after,
             )
             response = request.execute()
             return response.get("items", [])
         except Exception as e:
             logger.error(f"Ошибка получения видео с канала {channel_id}: {e}")
             return []
+
 
 # -------------------- Тестирование --------------------
 # if __name__ == "__main__":

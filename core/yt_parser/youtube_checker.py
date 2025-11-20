@@ -46,6 +46,7 @@ class YouTubeChecker:
 
                 pending_posts.append({
                     "videoId": video["video_id"],
+                    "channel_name": video["channel_name"],
                     "title": video["title"],
                     "description": video["description"],
                     "thumbnail_url": video["thumbnail"],

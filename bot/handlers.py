@@ -15,6 +15,7 @@ PENDING_POSTS_JSON = config.pending_posts_json
 
 active_post_data = ""
 
+
 # ------------------ Отображение поста -------------------
 async def show_post(bot: Bot, chat_id: int, index: int):
     """Показывает пост для модерации по индексу"""
@@ -27,13 +28,18 @@ async def show_post(bot: Bot, chat_id: int, index: int):
     post = posts[index]
     caption = (
         # f"<b>{post.get('title', 'Без названия')}</b>\n\n"
+        f"{post.get('channel_name', 'Нет текста поста')}\n\n"
         f"{post.get('generated_post', 'Нет текста поста')}\n\n"
         f"<b>Жанр:</b> {post.get('genre', 'Неизвестно')}\n"
         f"<a href='https://youtu.be/{post.get('videoId', '')}'>🎬 Смотреть видео</a>"
     )
 
     global active_post_data
-    active_post_data = caption
+    active_post_data = (
+        "\n\n"
+        f"<b>Жанр:</b> {post.get('genre', 'Неизвестно')}\n"
+        f"<a href='https://youtu.be/{post.get('videoId', '')}'>🎬 Смотреть видео</a>"
+    )
 
     try:
         await bot.send_photo(
@@ -49,7 +55,7 @@ async def show_post(bot: Bot, chat_id: int, index: int):
             chat_id,
             f"⚠️ Не удалось отправить фото. Вот сам пост:\n\n{caption}",
             parse_mode="HTML",
-            reply_markup=moderation_keyboard(index)
+            reply_markup=moderation_keyboard(index),
         )
 
 
@@ -73,19 +79,20 @@ async def handle_callback(query: types.CallbackQuery, callback_data: ModerationA
         await query.answer("✅ Пост одобрен")
 
         # ID канала, куда публикуем
-        channel_id = config.groups_by_genre.get(post["genre"])  # или GROUPS_BY_GENRE.get(post["genre"])
-
+        channel_id = config.groups_by_genre.get(post["genre"])
         try:
             await query.bot.send_photo(
                 chat_id=channel_id,  # теперь пост идёт в канал
                 photo=post["thumbnail_url"],
                 caption=post["generated_post"] + active_post_data,
-                parse_mode="HTML"
+                parse_mode="HTML",
             )
             logger.info(f"Пост '{post['title']}' опубликован в канал {channel_id}")
         except Exception as e:
             logger.error(f"Ошибка публикации поста '{post['title']}' в канал: {e}")
-            await query.bot.send_message(query.message.chat.id, f"⚠️ Ошибка публикации: {e}")
+            await query.bot.send_message(
+                query.message.chat.id, f"⚠️ Ошибка публикации: {e}"
+            )
 
     elif callback_data.action == "revise":
         await query.answer("♻️ Генерируется новый вариант...")
