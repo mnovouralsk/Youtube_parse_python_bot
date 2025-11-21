@@ -1,14 +1,16 @@
-# bot/keyboards.py
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
+
 
 class ModerationAction(CallbackData, prefix="mod"):
     """
     CallbackData для кнопок модерации.
-    action: "approve" | "revise" | "next"
+    action: "approve" | "revise" | "next" | "delete"
     post_index: индекс поста в pending_posts.json
     """
+
     action: str
     post_index: int
 
@@ -24,16 +26,31 @@ def moderation_keyboard(index: int) -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(
             text="✅ Одобрить",
-            callback_data=ModerationAction(action="approve", post_index=index).pack()
+            callback_data=ModerationAction(action="approve", post_index=index).pack(),
         ),
         InlineKeyboardButton(
             text="🔄 Предложить варианты",
-            callback_data=ModerationAction(action="revise", post_index=index).pack()
+            callback_data=ModerationAction(action="revise", post_index=index).pack(),
+        ),
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🗑 Удалить",
+            callback_data=ModerationAction(action="delete", post_index=index).pack(),
         ),
         InlineKeyboardButton(
             text="⏭ Следующий",
-            callback_data=ModerationAction(action="next", post_index=index).pack()
-        )
+            callback_data=ModerationAction(action="next", post_index=index).pack(),
+        ),
     )
 
     return builder.as_markup()
+
+
+# ------------------ Клавиатура для запуска модерации ------------------
+moderate_keyboard = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="/moderate")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)

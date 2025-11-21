@@ -4,7 +4,6 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from core.logger import logger
 from config import Config
 from bot.handlers import router
-from bot.moderation import router_moderation
 
 
 # Загрузка конфигурации
@@ -17,6 +16,6 @@ dp = Dispatcher(storage=storage)
 
 # Регистрация роутеров
 dp.include_router(router)
-dp.include_router(router_moderation)
+# dp.include_router(router_moderation)
 
 logger.info("Бот и диспетчер инициализированы")

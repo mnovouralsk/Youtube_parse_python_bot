@@ -36,6 +36,6 @@ def generate_genre_prompt(video_title: str, video_description: str) -> str:
 Название: {video_title}
 Описание: {video_description}
 
-Выбери один из жанров: Sci-Fi, Horror, Drama, Action, Comedy.
+Пример: Фантастика, Ужасы, Драма, Экшн, Комедии.
 Отправь только жанр, без пояснений.
 """
