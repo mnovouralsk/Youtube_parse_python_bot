@@ -33,7 +33,9 @@ class ReleaseTrackerApp:
         # Запуск фоновой проверки каналов
         if not self._periodic_task:
             logger.info("🔎 Запуск фоновой проверки каналов...")
-            self._periodic_task = asyncio.create_task(self.checker.start_periodic_check())
+            self._periodic_task = asyncio.create_task(
+                self.checker.start_periodic_check()
+            )
 
         # Запуск Telegram-бота
         await self.run_bot()
@@ -47,7 +49,7 @@ class ReleaseTrackerApp:
                     self.bot,
                     skip_updates=True,
                     polling_timeout=10,
-                    allowed_updates=self.dp.resolve_used_update_types()
+                    allowed_updates=self.dp.resolve_used_update_types(),
                 )
             except Exception as e:
                 logger.error(f"Ошибка в Telegram-боте: {e}", exc_info=True)
@@ -58,6 +60,8 @@ class ReleaseTrackerApp:
         """Корректное завершение работы приложения"""
         self._stopping = True
         logger.info("🛑 Остановка Release Tracker...")
+
+        await self.dp.stop()
 
         # Отмена фонового таска
         if self._periodic_task:

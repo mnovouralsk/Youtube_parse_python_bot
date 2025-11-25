@@ -1,4 +1,4 @@
-# core/yt_parser/youtube_checker_full.py
+# core/yt_parser/youtube_checker.py
 import asyncio
 from datetime import datetime, timezone
 
@@ -23,6 +23,8 @@ class YouTubeChecker:
 
     async def check_and_generate_posts(self):
         """Проверка каналов YouTube и генерация постов"""
+        posts_added_count = 0
+
         try:
             new_videos = self.parser.check_for_new_videos()
         except Exception as e:
@@ -33,49 +35,41 @@ class YouTubeChecker:
             logger.info("Новых видео не найдено.")
             return
 
-        pending_posts = load_json(PENDING_POSTS_JSON)
+        pending_posts = await asyncio.to_thread(load_json, PENDING_POSTS_JSON)
         if not isinstance(pending_posts, list):
             pending_posts = []
 
         for video in new_videos:
             try:
+                posts_added_count += 1
+
                 # Генерация текста поста
                 post_prompt = generate_post_prompt(video["title"], video["description"])
                 genre_prompt = generate_genre_prompt(
-                    video["title"], video["description"]
+                    video["title"],
+                    video["description", f"https://youtu.be/{video['videoId']}"],
                 )
 
-                generated_post = await generate_post(post_prompt)
-                genre = await generate_genre(genre_prompt)
-                # Проверка на разрешённые теги generated_post
-                if not is_only_allowed_tags(generated_post):
-                    logger.warning(
-                        f"Сгенерированный пост для видео '{video['title']}' содержит запрещённые теги. Пытаюсь регенерировать..."
-                    )
-                    regen_attempts = 0
-                    while regen_attempts < 5:
-                        generated_post = await generate_post(post_prompt)
-                        if is_only_allowed_tags(generated_post):
-                            logger.info(
-                                f"Успешно регенерирован пост для видео '{video['title']}' после {regen_attempts + 1} попыток."
-                            )
-                            break
-                        regen_attempts += 1
-                    else:
-                        logger.error(
-                            f"Не удалось сгенерировать пост без запрещённых тегов для видео '{video['title']}' после {regen_attempts} попыток. Пропускаю это видео."
-                        )
-                        generated_post = clean_html_for_telegram(generated_post)
-                        continue  # пропускаем это видео
+                generated_post = await self._regenerate_until_valid(
+                    generate_post, post_prompt, 5
+                )
 
-                # Проверка на разрешённые теги genre
-                if not is_only_allowed_tags(genre):
-                    regen_attempts = 0
-                    while regen_attempts < 5:
-                        genre = await generate_genre(genre_prompt)
-                        if is_only_allowed_tags(genre):
-                            break
-                        regen_attempts += 1
+                if generated_post is None:
+                    logger.error(
+                        f"Не удалось сгенерировать пост без запрещённых тегов для видео '{video['title']}'. Пропускаю это видео."
+                    )
+                    continue
+
+                generated_post = clean_html_for_telegram(generated_post)
+
+                genre = await self._regenerate_until_valid(
+                    generate_genre, genre_prompt, 5
+                )
+                # Проверка на разрешённые теги generated_post
+                if genre is not None:
+                    genre = clean_html_for_telegram(genre)
+                else:
+                    genre = ""
 
                 pending_posts.append(
                     {
@@ -102,8 +96,8 @@ class YouTubeChecker:
                 )
                 continue
 
-        save_json(PENDING_POSTS_JSON, pending_posts)
-        logger.info(f"✅ Всего новых постов на модерацию: {len(new_videos)}")
+        await asyncio.to_thread(save_json, PENDING_POSTS_JSON, pending_posts)
+        logger.info(f"✅ Всего новых постов на модерацию: {posts_added_count}")
 
     async def start_periodic_check(self):
         """Фоновый цикл периодической проверки"""
@@ -113,3 +107,25 @@ class YouTubeChecker:
                 f"⏳ Следующая проверка через {CHECK_INTERVAL_HOURS} часа(ов)..."
             )
             await asyncio.sleep(CHECK_INTERVAL_HOURS * 3600)
+
+    async def _regenerate_until_valid(self, prompt_func, prompt, attempts=5):
+        """Пытается сгенерировать контент до attempts раз, пока не пройдут проверку тегов."""
+
+        # Первая попытка (внешняя)
+        content = await prompt_func(prompt)
+        if is_only_allowed_tags(content):
+            return content
+
+        # Цикл регенерации
+        for i in range(attempts):
+            try:
+                content = await prompt_func(prompt)
+                if is_only_allowed_tags(content):
+                    return content
+            except Exception as e:
+                logger.warning(f"Ошибка LLM при регенерации ({i+1}/{attempts}): {e}")
+                await asyncio.sleep(1)
+
+        # Если все попытки провалены, возвращаем None
+        logger.error(f"Провал генерации контента после {attempts + 1} попыток.")
+        return None

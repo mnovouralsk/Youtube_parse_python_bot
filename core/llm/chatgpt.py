@@ -5,9 +5,17 @@ from g4f.client import Client
 import g4f
 from core.logger import logger
 
+FALLBACK_PROVIDERS = [
+    (g4f.models.gpt_4_1_mini, g4f.Provider.OIVSCodeSer0501),
+    (g4f.models.gemini_2_5_pro, g4f.Provider.OIVSCodeSer0501),
+    (g4f.models.gemini_2_5_flash, g4f.Provider.OIVSCodeSer0501),
+]
+
+
 def is_russian_text(text: str) -> bool:
     """Проверяет, что в тексте нет китайских иероглифов."""
     return not re.search(r"[\u4e00-\u9fff]", text)
+
 
 async def get_gpt_response(client: Client, prompt: str) -> str:
     """
@@ -22,7 +30,7 @@ async def get_gpt_response(client: Client, prompt: str) -> str:
                 model=g4f.models.gpt_4_1_mini,
                 provider=g4f.Provider.OIVSCodeSer0501,
                 messages=[{"role": "user", "content": prompt}],
-                stream=True
+                stream=True,
             )
 
             result_text = ""
@@ -37,15 +45,20 @@ async def get_gpt_response(client: Client, prompt: str) -> str:
                 logger.info("Ответ GPT содержит только русские буквы.")
                 return result_text
             else:
-                logger.warning("Ответ GPT содержит нерусские символы, повторяем запрос...")
+                logger.warning(
+                    "Ответ GPT содержит нерусские символы, повторяем запрос..."
+                )
                 await asyncio.sleep(5)
 
         except Exception as e:
             logger.error(f"Ошибка при запросе к GPT: {e}")
             await asyncio.sleep(5)
 
-    logger.error("Не удалось получить корректный ответ от GPT после нескольких попыток.")
+    logger.error(
+        "Не удалось получить корректный ответ от GPT после нескольких попыток."
+    )
     return ""
+
 
 async def generate_text_with_gpt(prompt: str) -> str:
     """
@@ -58,12 +71,13 @@ async def generate_text_with_gpt(prompt: str) -> str:
 
     client = Client()
     words = prompt.split()
-    chunks = [" ".join(words[i:i + 1000]) for i in range(0, len(words), 1000)]
+    chunks = [" ".join(words[i : i + 1000]) for i in range(0, len(words), 1000)]
 
     tasks = [asyncio.create_task(get_gpt_response(client, chunk)) for chunk in chunks]
     results = await asyncio.gather(*tasks)
 
     return "\n".join(filter(None, results)).strip()
+
 
 async def generate_post(prompt: str, retries: int = 3) -> str:
     """Генерация Telegram-поста через g4f с повторными попытками"""
@@ -76,6 +90,7 @@ async def generate_post(prompt: str, retries: int = 3) -> str:
             logger.error(f"Ошибка генерации поста (попытка {attempt}): {e}")
         await asyncio.sleep(2)
     return "Ошибка генерации поста."
+
 
 async def generate_genre(prompt: str, retries: int = 3) -> str:
     """Определение жанра фильма через g4f с повторными попытками"""

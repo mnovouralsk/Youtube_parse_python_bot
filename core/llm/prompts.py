@@ -27,15 +27,18 @@ def generate_post_prompt(video_title: str, video_description: str) -> str:
 """
 
 
-def generate_genre_prompt(video_title: str, video_description: str) -> str:
+def generate_genre_prompt(
+    video_title: str, video_description: str, video_url: str
+) -> str:
     """
     Возвращает промт для определения жанра видео
     """
     return f"""
-Определи жанр фильма по описанию:
-Название: {video_title}
-Описание: {video_description}
+Определи жанр фильма, обязательно найди и используй официальный жанр с IMDb или Кинопоиска по следующей информации:
+Название: {video_title},
+Описание: {video_description},
+Ссылка на видео: {video_url},
 
-Пример: Фантастика, Ужасы, Драма, Экшн, Комедии.
+Пример: Фантастика, Ужасы, Драма, Экшн, Комедии и т.д.
 Отправь только жанр, без пояснений.
 """

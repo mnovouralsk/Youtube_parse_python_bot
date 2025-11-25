@@ -2,7 +2,7 @@
 import os
 import json
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -45,9 +45,14 @@ def load_deleted_list() -> List[str]:
 def parse_yt_datetime(dt: str) -> datetime:
     """Convert YouTube `publishedAt` ISO string to timezone-aware UTC datetime."""
     try:
+        # Пытаемся распарсить дату
         return datetime.fromisoformat(dt.replace("Z", "+00:00"))
-    except Exception:
-        return START_DAY_BEGIN - timedelta(days=5)  # safe fallback
+    except Exception as e:
+        logger.error(f"Ошибка обработки YouTube datetime string '{dt}': {e}")
+
+        # Возвращаем "безопасное" значение, которое гарантированно будет отфильтровано
+        # (дата за 5 дней до начала целевого дня)
+        return START_DAY_BEGIN - timedelta(days=5)
 
 
 # ---------------------- Main Parser Class ----------------------
@@ -118,29 +123,59 @@ class YouTubeParser:
 
     # ----------- API Requests -----------
 
-    def _get_channel_videos_raw(self, channel_id: str) -> List[Dict]:
-        """Get up to 50 videos ordered by date."""
+    def _get_uploads_playlist_id(self, channel_id: str) -> str | None:
         try:
-            request = self.youtube.search().list(
-                part="snippet",
-                channelId=channel_id,
-                maxResults=50,
-                order="date",
-                type="video",
-            )
+            request = self.youtube.channels().list(part="contentDetails", id=channel_id)
             response = request.execute()
-            return response.get("items", [])
+            return response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
         except Exception as e:
-            error_res = e.content.decode() if hasattr(e, "content") else str(e)
-            if "quotaExceeded" in error_res:
-                logger.error(
-                    f"[YOUTUBE QUOTA] Лимит API превышен для канала {channel_id}"
-                )
-            else:
-                logger.error(
-                    f"[YOUTUBE ERROR] Ошибка загрузки видео с канала {channel_id}: {e}"
-                )
+            logger.error(f"Ошибка получения плейлиста загрузок для {channel_id}: {e}")
+            return None
+
+    def _get_channel_videos_paged(self, channel_id: str) -> List[Dict]:
+        playlist_id = self._get_uploads_playlist_id(channel_id)
+        if not playlist_id:
             return []
+
+        all_raw_videos = []
+        next_page_token = None
+
+        while True:
+            try:
+                request = self.youtube.playlistItems().list(
+                    part="snippet",
+                    playlistId=playlist_id,
+                    maxResults=50,
+                    pageToken=next_page_token,
+                )
+                response = request.execute()
+
+                # --- Логика остановки ---
+                for item in response.get("items", []):
+                    pub_date = parse_yt_datetime(item["snippet"]["publishedAt"])
+
+                    # Если видео опубликовано ДО начала нашего дня, то все последующие (более старые)
+                    # видео нам тоже не нужны. Завершаем цикл.
+                    if pub_date < START_DAY_BEGIN:
+                        logger.info(
+                            f"Остановка: достигнуто видео от {pub_date.date()}, более старое, чем {START_DAY_BEGIN.date()}"
+                        )
+                        return all_raw_videos
+
+                    # Если видео находится в целевом диапазоне (или позже, что маловероятно для отсортированного списка)
+                    all_raw_videos.append(item)
+
+                next_page_token = response.get("nextPageToken")
+                if not next_page_token:
+                    break
+
+            except Exception as e:
+                logger.error(
+                    f"Ошибка загрузки видео из плейлиста {playlist_id} канала {channel_id}: {e}"
+                )
+                break
+
+        return all_raw_videos
 
     # ----------- Main Logic -----------
 
@@ -161,10 +196,14 @@ class YouTubeParser:
             channel_name = channel["name"]
             logger.info(f"Checking channel: {channel_id} ({channel_name})")
 
-            videos = self._get_channel_videos_raw(channel_id)
+            videos = self._get_channel_videos_paged(channel_id)
+
+            # Сортируем (если API не гарантирует порядок)
+            videos.sort(key=lambda x: x["snippet"]["publishedAt"], reverse=True)
+            found_videos_for_channel = []
 
             for video in videos:
-                vid = video["id"]["videoId"]
+                vid = video["snippet"]["resourceId"]["videoId"]
 
                 # Skip deleted
                 if vid in self.deleted_videos:
@@ -177,26 +216,26 @@ class YouTubeParser:
                 snippet = video["snippet"]
                 pub = parse_yt_datetime(snippet["publishedAt"])
 
-                # Filter by exact daily range
                 if not (START_DAY_BEGIN <= pub <= START_DAY_END):
                     continue
 
-                new_videos.append(
-                    {
-                        "channel_id": channel_id,
-                        "channel_name": channel_name,
-                        "video_id": vid,
-                        "title": snippet["title"],
-                        "description": snippet.get("description", ""),
-                        "thumbnail": snippet["thumbnails"]["high"]["url"],
-                        "published_at": snippet["publishedAt"],
-                        "url": f"https://www.youtube.com/watch?v={vid}",
-                    }
-                )
+                video_data = {
+                    "channel_id": channel_id,
+                    "channel_name": channel_name,
+                    "video_id": vid,
+                    "title": snippet["title"],
+                    "description": snippet.get("description", ""),
+                    "thumbnail": snippet["thumbnails"]["high"]["url"],
+                    "published_at": snippet["publishedAt"],
+                    "url": f"https://www.youtube.com/watch?v={vid}",
+                }
 
-            # Update last video if available
-            if videos:
-                self.last_videos[channel_id] = videos[0]["id"]["videoId"]
+                new_videos.append(video_data)
+                found_videos_for_channel.append(video_data)
+
+            if found_videos_for_channel:
+                # Так как список отсортирован по дате (newest-first), элемент [0] — это самый новый
+                self.last_videos[channel_id] = found_videos_for_channel[0]["video_id"]
 
         self._save_last_videos()
         logger.info(f"✅ Found {len(new_videos)} videos matching date filter.")

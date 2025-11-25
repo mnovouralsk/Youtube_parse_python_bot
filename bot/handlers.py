@@ -1,5 +1,6 @@
-from typing import List, Dict
+import asyncio
 
+from typing import List, Dict
 from aiogram import Router, types, Bot
 from aiogram.filters import Command
 
@@ -25,10 +26,11 @@ MAX_REGEN_ATTEMPTS = 5
 
 
 # -------------------- вспомогательные функции --------------------
-def ensure_deleted_file_format():
+async def ensure_deleted_file_format():
     """Убедиться, что файл deleted_videos.json существует и в правильном формате."""
     try:
-        data = load_json(DELETED_VIDEOS_JSON)
+        # ASYNC I/O
+        data = await asyncio.to_thread(load_json, DELETED_VIDEOS_JSON)
         if (
             not isinstance(data, dict)
             or "deleted" not in data
@@ -37,31 +39,38 @@ def ensure_deleted_file_format():
             logger.warning(
                 f"{DELETED_VIDEOS_JSON} в неверном формате — сбрасываем в {{'deleted': []}}"
             )
-            save_json(DELETED_VIDEOS_JSON, {"deleted": []})
+            # ASYNC I/O
+            await asyncio.to_thread(save_json, DELETED_VIDEOS_JSON, {"deleted": []})
     except Exception:
         # Если файл не существует или повреждён — создаём корректный
-        save_json(DELETED_VIDEOS_JSON, {"deleted": []})
+        # ASYNC I/O
+        await asyncio.to_thread(save_json, DELETED_VIDEOS_JSON, {"deleted": []})
 
 
-def load_deleted_list() -> List[str]:
+async def load_deleted_list() -> List[str]:
     """Возвращает список удалённых videoId (строки)."""
-    ensure_deleted_file_format()
-    data = load_json(DELETED_VIDEOS_JSON)
+    # ASYNC вызов
+    await ensure_deleted_file_format()
+    # ASYNC I/O
+    data = await asyncio.to_thread(load_json, DELETED_VIDEOS_JSON)
     deleted = data.get("deleted", []) if isinstance(data, dict) else []
     return deleted
 
 
-def add_deleted_video(video_id: str):
+async def add_deleted_video(video_id: str):
     """Добавить video_id в deleted_videos.json если ещё нет."""
-    ensure_deleted_file_format()
-    data = load_json(DELETED_VIDEOS_JSON)
+    # ASYNC вызов
+    await ensure_deleted_file_format()
+    # ASYNC I/O
+    data = await asyncio.to_thread(load_json, DELETED_VIDEOS_JSON)
     if not isinstance(data, dict):
         data = {"deleted": []}
     deleted = data.get("deleted", [])
     if video_id not in deleted:
         deleted.append(video_id)
         data["deleted"] = deleted
-        save_json(DELETED_VIDEOS_JSON, data)
+        # ASYNC I/O
+        await asyncio.to_thread(save_json, DELETED_VIDEOS_JSON, data)
         logger.info(f"Video {video_id} добавлен в {DELETED_VIDEOS_JSON}")
 
 
@@ -109,7 +118,7 @@ async def ensure_post_has_only_allowed_tags(post: Dict) -> None:
 # ------------------ Отображение поста -------------------
 async def show_post(bot: Bot, chat_id: int, index: int):
     """Показывает пост для модерации по индексу"""
-    posts = load_json(PENDING_POSTS_JSON)
+    posts = await asyncio.to_thread(load_json, PENDING_POSTS_JSON)
     if not isinstance(posts, list):
         logger.warning(
             f"{PENDING_POSTS_JSON} ожидается список, но получен другой тип — сбрасываем."
@@ -138,7 +147,7 @@ async def show_post(bot: Bot, chat_id: int, index: int):
             photo=post.get("thumbnail_url", ""),
             caption=caption,
             parse_mode="HTML",
-            reply_markup=moderation_keyboard(index),
+            reply_markup=moderation_keyboard(index, len(posts)),
         )
     except Exception as e:
         logger.error(f"Ошибка при отправке поста '{post.get('title')}': {e}")
@@ -147,7 +156,7 @@ async def show_post(bot: Bot, chat_id: int, index: int):
             chat_id,
             f"⚠️ Не удалось отправить фото. Вот сам пост:\n\n{caption}",
             parse_mode="HTML",
-            reply_markup=moderation_keyboard(index),
+            reply_markup=moderation_keyboard(index, len(posts)),
         )
 
 
@@ -156,7 +165,7 @@ async def show_post(bot: Bot, chat_id: int, index: int):
 async def handle_callback(query: types.CallbackQuery, callback_data: ModerationAction):
     """Обработка действий модератора"""
     bot: Bot = query.bot
-    posts = load_json(PENDING_POSTS_JSON)
+    posts = await asyncio.to_thread(load_json, PENDING_POSTS_JSON)
     if not isinstance(posts, list):
         posts = []
 
@@ -203,6 +212,24 @@ async def handle_callback(query: types.CallbackQuery, callback_data: ModerationA
             )
             await bot.send_message(chat_id, f"⚠️ Ошибка публикации: {e}")
 
+        await asyncio.to_thread(save_json, PENDING_POSTS_JSON, posts)
+
+        try:
+            await query.message.edit_caption(
+                caption=f"✅ Одобрено: '{post.get('title', 'Без названия')}'",
+                reply_markup=None,
+            )
+        except Exception:
+            # Если это было не фото (например, сообщение об ошибке), редактируем текст
+            await query.message.edit_text(
+                text=f"✅ Одобрено: '{post.get('title', 'Без названия')}'",
+                reply_markup=None,
+            )
+
+        await show_post(bot, chat_id, index + 1)
+
+        return
+
     # --- Перегенерация ---
     elif callback_data.action == "revise":
         await query.answer("♻️ Генерируется новый вариант...")
@@ -227,14 +254,14 @@ async def handle_callback(query: types.CallbackQuery, callback_data: ModerationA
         vid = post.get("videoId")
         if vid:
             try:
-                add_deleted_video(vid)
+                await add_deleted_video(vid)
             except Exception as e:
                 logger.error(f"Не удалось пометить видео {vid} как удалённое: {e}")
 
         # Удаляем сам пост из списка
         try:
             posts.pop(index)
-            save_json(PENDING_POSTS_JSON, posts)
+            await asyncio.to_thread(save_json, PENDING_POSTS_JSON, posts)
             await query.answer("🗑 Пост удалён")
         except Exception as e:
             logger.error(f"Ошибка при удалении поста index={index}: {e}")
@@ -254,7 +281,7 @@ async def handle_callback(query: types.CallbackQuery, callback_data: ModerationA
         index += 1
 
     # Сохраняем изменения (approve/revise/next)
-    save_json(PENDING_POSTS_JSON, posts)
+    await asyncio.to_thread(save_json, PENDING_POSTS_JSON, posts)
     # Показываем (возможно обновлённый) пост
     await show_post(bot, chat_id, index)
 
@@ -264,7 +291,7 @@ async def handle_callback(query: types.CallbackQuery, callback_data: ModerationA
 async def cmd_moderate(message: types.Message):
     """Запуск модерации"""
     bot: Bot = message.bot
-    posts = load_json(PENDING_POSTS_JSON)
+    posts = await asyncio.to_thread(load_json, PENDING_POSTS_JSON)
     if not isinstance(posts, list):
         posts = []
 
@@ -281,7 +308,7 @@ async def cmd_moderate(message: types.Message):
 async def cmd_start(message: types.Message):
     """Приветствие и показ кнопки /moderate только модераторам"""
     user_id = message.from_user.id
-    if user_id in config.moderator_chat_id:
+    if str(user_id) in config.moderator_chat_id:
         await message.answer(
             "Привет! Для запуска модерации нажмите кнопку ниже:",
             reply_markup=moderate_keyboard,

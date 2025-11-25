@@ -16,6 +16,5 @@ dp = Dispatcher(storage=storage)
 
 # Регистрация роутеров
 dp.include_router(router)
-# dp.include_router(router_moderation)
 
 logger.info("Бот и диспетчер инициализированы")
